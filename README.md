@@ -38,6 +38,45 @@ bun run dev
 
 No backend required!
 
+## Production Deployment
+
+### Vercel Deployment (Recommended)
+
+1. **Install Vercel CLI:**
+```bash
+npm i -g vercel
+```
+
+2. **Deploy to Vercel:**
+```bash
+cd frontend
+vercel --prod
+```
+
+3. **Or connect your GitHub repository:**
+   - Go to [vercel.com](https://vercel.com)
+   - Import your GitHub repository
+   - Vercel will automatically detect the Vite configuration
+
+### Manual Build
+
+```bash
+cd frontend
+bun run build
+bun run preview
+```
+
+### Environment Variables
+
+Create a `.env.production` file for production-specific variables:
+
+```env
+VITE_APP_TITLE="GrokClips"
+VITE_APP_DESCRIPTION="A TikTok-style interface for exploring Grokipedia articles"
+VITE_APP_URL="https://your-domain.vercel.app"
+VITE_ANALYTICS_ENABLED=true
+```
+
 ## Demo
 
 Check it out here at [grokclips.vercel.app](https://grokclips.vercel.app) or [grokclips.io](https://www.grokclips.io)
