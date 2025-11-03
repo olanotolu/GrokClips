@@ -417,7 +417,7 @@ function App() {
                 <p className="text-gray-400">
                   Enjoy this project?{" "}
                   <a
-                    href="https://buymeacoffee.com/aizk"
+                    href="https://ko-fi.com/olaoluwasubomi"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-white/80 hover:text-white transition-colors"
