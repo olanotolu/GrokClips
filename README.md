@@ -81,7 +81,7 @@ VITE_ANALYTICS_ENABLED=true
 
 Check it out here at [grokclips.vercel.app](https://grokclips.vercel.app) or [grokclips.io](https://www.grokclips.io)
 
-**Note:** This is the original GrokClips web project, not affiliated with grokclips.net or the independently developed GrokClips mobile apps for iPhone and Android.
+**Note:** GrokClips is an enhanced version of the original GrokClips web project, featuring modern upgrades including virtual scrolling, dark/light theme support, offline caching, and advanced navigation. Not affiliated with grokclips.net or the independently developed GrokClips mobile apps for iPhone and Android.
 
 ## License
 

@@ -1,21 +1,37 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { GrokCard } from "./components/GrokCard";
-import { Loader2, Search, X, Download, Heart } from "lucide-react";
+import { Loader2, Search, X, Download, Heart, Sun, Moon, Monitor } from "lucide-react";
 import { Analytics } from "@vercel/analytics/react";
 import { LanguageSelector } from "./components/LanguageSelector";
 import { useLikedArticles } from "./contexts/LikedArticlesContext";
 import { useGrokArticles } from "./hooks/useGrokipediaArticles";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useTheme } from "./contexts/ThemeContext";
+import { SkeletonLoader } from "./components/SkeletonCard";
 
 function App() {
   const [showAbout, setShowAbout] = useState(false);
   const [showLikes, setShowLikes] = useState(false);
   const { articles, loading, fetchArticles, updateScrollSpeed } = useGrokArticles();
   const { likedArticles, toggleLike } = useLikedArticles();
+  const { theme, actualTheme, setTheme } = useTheme();
   const observerTarget = useRef(null);
+  const parentRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const lastScrollY = useRef(0);
+  const touchStartY = useRef(0);
+  const touchStartTime = useRef(0);
+
+  // Virtual scrolling setup
+  const rowVirtualizer = useVirtualizer({
+    count: articles.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => window.innerHeight, // Each article takes full screen height
+    overscan: 2, // Render 2 extra items outside visible area
+  });
 
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
@@ -43,10 +59,12 @@ function App() {
   // Track scroll speed for dynamic batch sizing
   useEffect(() => {
     const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      const scrollDelta = currentScrollY - lastScrollY.current;
-      updateScrollSpeed(scrollDelta);
-      lastScrollY.current = currentScrollY;
+      if (parentRef.current) {
+        const currentScrollY = parentRef.current.scrollTop;
+        const scrollDelta = currentScrollY - lastScrollY.current;
+        updateScrollSpeed(scrollDelta);
+        lastScrollY.current = currentScrollY;
+      }
     };
 
     // Throttle scroll events for performance
@@ -61,25 +79,141 @@ function App() {
       }
     };
 
-    window.addEventListener('scroll', throttledScroll, { passive: true });
-    return () => window.removeEventListener('scroll', throttledScroll);
+    const scrollElement = parentRef.current;
+    if (scrollElement) {
+      scrollElement.addEventListener('scroll', throttledScroll, { passive: true });
+      return () => scrollElement.removeEventListener('scroll', throttledScroll);
+    }
   }, [updateScrollSpeed]);
 
-  // Keyboard shortcut for search (Cmd+K on Mac, Ctrl+K on Windows/Linux)
+  // Swipe gesture handling for mobile navigation
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartY.current = e.touches[0].clientY;
+      touchStartTime.current = Date.now();
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!parentRef.current) return;
+
+      const touchEndY = e.changedTouches[0].clientY;
+      const touchEndTime = Date.now();
+      const deltaY = touchStartY.current - touchEndY;
+      const deltaTime = touchEndTime - touchStartTime.current;
+
+      // Minimum swipe distance and velocity thresholds
+      const minSwipeDistance = 50;
+      const maxSwipeTime = 300;
+
+      if (Math.abs(deltaY) > minSwipeDistance && deltaTime < maxSwipeTime) {
+        const currentScrollTop = parentRef.current.scrollTop;
+        const windowHeight = window.innerHeight;
+
+        if (deltaY > 0) {
+          // Swipe up - next article
+          const nextScrollTop = Math.ceil((currentScrollTop + windowHeight) / windowHeight) * windowHeight;
+          parentRef.current.scrollTo({
+            top: nextScrollTop,
+            behavior: 'smooth'
+          });
+        } else {
+          // Swipe down - previous article
+          const prevScrollTop = Math.floor(currentScrollTop / windowHeight) * windowHeight;
+          if (prevScrollTop !== currentScrollTop) {
+            parentRef.current.scrollTo({
+              top: prevScrollTop,
+              behavior: 'smooth'
+            });
+          }
+        }
+      }
+    };
+
+    const scrollElement = parentRef.current;
+    if (scrollElement) {
+      scrollElement.addEventListener('touchstart', handleTouchStart, { passive: true });
+      scrollElement.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+      return () => {
+        scrollElement.removeEventListener('touchstart', handleTouchStart);
+        scrollElement.removeEventListener('touchend', handleTouchEnd);
+      };
+    }
+  }, []);
+
+  // Keyboard navigation and shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Search shortcuts
       if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
         event.preventDefault();
         setShowSearch(true);
+        return;
       }
+
       if (event.key === 'Escape' && showSearch) {
         setShowSearch(false);
+        return;
+      }
+
+      // Navigation shortcuts (only when not in search)
+      if (!showSearch && parentRef.current) {
+        const windowHeight = window.innerHeight;
+        const currentScrollTop = parentRef.current.scrollTop;
+
+        switch (event.key) {
+          case 'ArrowDown':
+          case 'j':
+          case ' ': // Spacebar
+            event.preventDefault();
+            parentRef.current.scrollTo({
+              top: currentScrollTop + windowHeight,
+              behavior: 'smooth'
+            });
+            break;
+          case 'ArrowUp':
+          case 'k':
+            event.preventDefault();
+            parentRef.current.scrollTo({
+              top: Math.max(0, currentScrollTop - windowHeight),
+              behavior: 'smooth'
+            });
+            break;
+          case 'Home':
+            event.preventDefault();
+            parentRef.current.scrollTo({
+              top: 0,
+              behavior: 'smooth'
+            });
+            break;
+          case 'End':
+            event.preventDefault();
+            parentRef.current.scrollTo({
+              top: articles.length * windowHeight,
+              behavior: 'smooth'
+            });
+            break;
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showSearch]);
+  }, [showSearch, articles.length]);
+
+  // Network status monitoring
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     fetchArticles();
@@ -113,14 +247,37 @@ function App() {
   };
 
   return (
-    <div className="h-screen w-full bg-black text-white overflow-y-scroll snap-y snap-mandatory hide-scroll">
+    <div className="h-screen w-full" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* Minimalist Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10">
+      <div
+        className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b"
+        style={{
+          backgroundColor: 'var(--glass-bg)',
+          borderColor: 'var(--border-primary)'
+        }}
+      >
+        {/* Offline Indicator */}
+        {!isOnline && (
+          <div
+            className="absolute top-full left-0 right-0 py-1 px-4 text-center text-sm font-medium"
+            style={{
+              backgroundColor: actualTheme === 'dark' ? '#dc2626' : '#ef4444',
+              color: '#ffffff'
+            }}
+          >
+            🔴 You're offline - Using cached articles
+          </div>
+        )}
+
         <div className="max-w-screen-xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
             <button
               onClick={() => window.location.reload()}
-              className="text-2xl font-bold text-white hover:text-gray-200 transition-all duration-300 transform hover:scale-105"
+              className="text-2xl font-bold transition-all duration-300 transform hover:scale-105"
+              style={{
+                color: 'var(--text-primary)',
+                filter: actualTheme === 'dark' ? 'brightness(1.1)' : 'brightness(0.9)'
+              }}
             >
               GrokClips
             </button>
@@ -128,28 +285,86 @@ function App() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowSearch(!showSearch)}
-                className="group relative p-3 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20 hover:border-white/30 transition-all duration-300 transform hover:scale-110"
+                className="group relative p-3 rounded-full backdrop-blur-sm border transition-all duration-300 transform hover:scale-110"
+                style={{
+                  backgroundColor: 'var(--hover-bg)',
+                  borderColor: 'var(--border-secondary)',
+                  color: 'var(--text-primary)',
+                }}
                 aria-label="Search articles (⌘K)"
                 title="Search articles (⌘K)"
               >
                 <Search className="w-5 h-5" />
-                <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                <div
+                  className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)'
+                  }}
+                >
                   ⌘K
                 </div>
               </button>
               <button
+                onClick={() => {
+                  const nextTheme = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark';
+                  setTheme(nextTheme);
+                }}
+                className="group relative p-3 rounded-full backdrop-blur-sm border transition-all duration-300 transform hover:scale-110"
+                style={{
+                  backgroundColor: 'var(--hover-bg)',
+                  borderColor: 'var(--border-secondary)',
+                  color: 'var(--text-primary)',
+                }}
+                aria-label={`Current theme: ${theme}. Click to cycle themes`}
+                title={`Current theme: ${theme}. Click to cycle themes`}
+              >
+                {theme === 'dark' && <Moon className="w-5 h-5" />}
+                {theme === 'light' && <Sun className="w-5 h-5" />}
+                {theme === 'system' && <Monitor className="w-5 h-5" />}
+                <div
+                  className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)'
+                  }}
+                >
+                  {theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System'}
+                </div>
+              </button>
+              <button
                 onClick={() => setShowAbout(!showAbout)}
-                className="px-4 py-2 text-sm font-medium text-white/80 hover:text-white bg-white/5 hover:bg-white/10 rounded-full backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300"
+                className="px-4 py-2 text-sm font-medium rounded-full backdrop-blur-sm border transition-all duration-300"
+                style={{
+                  color: 'var(--text-secondary)',
+                  backgroundColor: 'var(--hover-bg)',
+                  borderColor: 'var(--border-primary)',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
                 About
               </button>
               <button
                 onClick={() => setShowLikes(!showLikes)}
-                className="px-4 py-2 text-sm font-medium text-white/80 hover:text-white bg-white/5 hover:bg-white/10 rounded-full backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300"
+                className="px-4 py-2 text-sm font-medium rounded-full backdrop-blur-sm border transition-all duration-300"
+                style={{
+                  color: 'var(--text-secondary)',
+                  backgroundColor: 'var(--hover-bg)',
+                  borderColor: 'var(--border-primary)',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
                 Likes
               </button>
-              <div className="bg-white/5 backdrop-blur-sm rounded-full border border-white/10">
+              <div
+                className="backdrop-blur-sm rounded-full border"
+                style={{
+                  backgroundColor: 'var(--hover-bg)',
+                  borderColor: 'var(--border-primary)'
+                }}
+              >
                 <LanguageSelector />
               </div>
             </div>
@@ -180,18 +395,18 @@ function App() {
                 <p className="text-gray-400">
                   Made with ❤️ by{" "}
                   <a
-                    href="https://x.com/Aizkmusic"
+                    href="https://x.com/olanotolu"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-white/80 hover:text-white transition-colors"
                   >
-                    @Aizkmusic
+                    @olanotolu
                   </a>
                 </p>
                 <p className="text-gray-400">
                   Check out the code on{" "}
                   <a
-                    href="https://github.com/IsaacGemal/grokclips"
+                    href="https://github.com/olanotolu/GrokClips"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-white/80 hover:text-white transition-colors"
@@ -466,18 +681,87 @@ function App() {
         </div>
       )}
 
-      {articles.map((article) => (
-        <GrokCard key={article.pageid} article={article} />
-      ))}
-      <div ref={observerTarget} className="h-10 -mt-1" />
-      {loading && (
-        <div className="h-screen w-full flex items-center justify-center">
-          <div className="bg-black/50 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl shadow-black/50">
-            <div className="flex items-center gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-white" />
+      {/* Virtual Scrolling Container */}
+      <div
+        ref={parentRef}
+        className="h-screen w-full overflow-auto snap-y snap-mandatory hide-scroll"
+        style={{ contain: 'strict' }}
+      >
+        {articles.length === 0 && loading ? (
+          // Show skeleton loader when no articles and loading
+          <SkeletonLoader count={5} />
+        ) : (
+          // Show virtualized articles when available
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+              const article = articles[virtualItem.index];
+              return (
+                <div
+                  key={article.pageid}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualItem.size}px`,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <GrokCard article={article} />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Intersection Observer Target for Loading More */}
+        <div
+          ref={observerTarget}
+          className="h-10 -mt-1"
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+          }}
+        />
+      </div>
+      {loading && articles.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-40">
+          <div
+            className="backdrop-blur-xl border rounded-2xl p-4 shadow-2xl"
+            style={{
+              backgroundColor: 'var(--glass-bg)',
+              borderColor: 'var(--glass-border)',
+              boxShadow: actualTheme === 'dark'
+                ? '0 25px 50px -12px rgba(0, 0, 0, 0.8)'
+                : '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <Loader2
+                className="h-6 w-6 animate-spin"
+                style={{ color: 'var(--text-primary)' }}
+              />
               <div>
-                <p className="text-white font-medium">Loading articles...</p>
-                <p className="text-gray-400 text-sm">Discovering local Grokipedia knowledge</p>
+                <p
+                  className="font-medium text-sm"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  Loading more articles...
+                </p>
+                <p
+                  className="text-xs"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  {articles.length} loaded
+                </p>
               </div>
             </div>
           </div>

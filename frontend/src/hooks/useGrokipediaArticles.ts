@@ -91,7 +91,10 @@ const parseGrokipediaArticle = (htmlContent: string, filename: string): GrokArti
   }
 };
 
-// Load random articles from local HTML files
+// Cache for offline support
+const offlineCache = new Map<string, string>();
+
+// Load random articles from local HTML files with offline caching
 const loadLocalArticles = async (
   shownArticles: Set<string>,
   batchSize: number = 30
@@ -109,21 +112,43 @@ const loadLocalArticles = async (
 
     const articles: GrokArticle[] = [];
 
-    // Load and parse each selected HTML file
+    // Load and parse each selected HTML file with offline caching
     for (const filename of selectedFiles) {
       try {
-        const htmlResponse = await fetch(`/data/${filename}`);
-        if (htmlResponse.ok) {
-          const htmlContent = await htmlResponse.text();
-          const article = parseGrokipediaArticle(htmlContent, filename);
-          if (article) {
-            articles.push(article);
-            // Track this article as shown
-            shownArticles.add(filename);
+        let htmlContent: string;
+
+        // Try to get from cache first
+        if (offlineCache.has(filename)) {
+          htmlContent = offlineCache.get(filename)!;
+        } else {
+          const htmlResponse = await fetch(`/data/${filename}`);
+          if (htmlResponse.ok) {
+            htmlContent = await htmlResponse.text();
+            // Cache for offline use
+            offlineCache.set(filename, htmlContent);
+          } else {
+            console.warn(`Failed to load ${filename}: ${htmlResponse.status}`);
+            continue;
           }
+        }
+
+        const article = parseGrokipediaArticle(htmlContent, filename);
+        if (article) {
+          articles.push(article);
+          // Track this article as shown
+          shownArticles.add(filename);
         }
       } catch (error) {
         console.warn(`Failed to load ${filename}:`, error);
+        // Try to use cached version if network fails
+        if (offlineCache.has(filename)) {
+          const cachedContent = offlineCache.get(filename)!;
+          const article = parseGrokipediaArticle(cachedContent, filename);
+          if (article) {
+            articles.push(article);
+            shownArticles.add(filename);
+          }
+        }
       }
     }
 
