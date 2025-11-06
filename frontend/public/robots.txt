@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+
+# Block access to sensitive files
+Disallow: /_next/
+Disallow: /api/
+Disallow: /admin/
+
+# Allow crawling of all content
+Allow: /data/
+Allow: /
+
+# Sitemap
+Sitemap: https://grokclips.vercel.app/sitemap.xml

@@ -58,6 +58,15 @@ vercel --prod
    - Import your GitHub repository
    - Vercel will automatically detect the Vite configuration
 
+### SEO & Google Search Setup
+
+After deployment, set up Google Search Console:
+
+1. **Add your domain to Google Search Console**
+2. **Verify ownership** using the HTML file method
+3. **Submit your sitemap:** `https://yourdomain.vercel.app/sitemap.xml`
+4. **Add robots.txt:** `https://yourdomain.vercel.app/robots.txt`
+
 ### Manual Build
 
 ```bash
@@ -76,6 +85,17 @@ VITE_APP_DESCRIPTION="A TikTok-style interface for exploring Grokipedia articles
 VITE_APP_URL="https://your-domain.vercel.app"
 VITE_ANALYTICS_ENABLED=true
 ```
+
+## SEO Features
+
+- ✅ **Structured Data (JSON-LD)** for rich search results
+- ✅ **Open Graph & Twitter Cards** for social sharing
+- ✅ **Meta tags optimized** for search engines
+- ✅ **Sitemap.xml** for search engine crawling
+- ✅ **Robots.txt** for crawler instructions
+- ✅ **Canonical URLs** to prevent duplicate content
+- ✅ **Performance optimized** for Core Web Vitals
+- ✅ **PWA ready** for app-like experience
 
 ## Demo
 

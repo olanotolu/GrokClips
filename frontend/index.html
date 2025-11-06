@@ -2,14 +2,115 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+
+    <!-- Primary Meta Tags -->
+    <title>GrokClips - TikTok-Style Interface for Exploring Grokipedia Articles</title>
+    <meta name="title" content="GrokClips - TikTok-Style Interface for Exploring Grokipedia Articles" />
+    <meta name="description" content="Discover Grokipedia articles in a modern, TikTok-style vertical feed. Random articles, beautiful interface, offline support, and smooth scrolling. Built with React, TypeScript, and PWA technology." />
+    <meta name="keywords" content="Grokipedia, articles, knowledge, encyclopedia, TikTok, vertical feed, PWA, React, TypeScript, offline, search" />
+    <meta name="author" content="Olaoluwasubomi" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <meta name="bingbot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://grokclips.vercel.app" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://grokclips.vercel.app" />
+    <meta property="og:title" content="GrokClips - TikTok-Style Interface for Exploring Grokipedia Articles" />
+    <meta property="og:description" content="Discover Grokipedia articles in a modern, TikTok-style vertical feed. Random articles, beautiful interface, offline support, and smooth scrolling." />
+    <meta property="og:image" content="https://grokclips.vercel.app/grok-logo.svg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="GrokClips - Modern Knowledge Discovery" />
+    <meta property="og:site_name" content="GrokClips" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://grokclips.vercel.app" />
+    <meta name="twitter:title" content="GrokClips - TikTok-Style Interface for Exploring Grokipedia Articles" />
+    <meta name="twitter:description" content="Discover Grokipedia articles in a modern, TikTok-style vertical feed. Random articles, beautiful interface, offline support, and smooth scrolling." />
+    <meta name="twitter:image" content="https://grokclips.vercel.app/grok-logo.svg" />
+    <meta name="twitter:image:alt" content="GrokClips - Modern Knowledge Discovery" />
+    <meta name="twitter:creator" content="@olanotolu" />
+    <meta name="twitter:site" content="@olanotolu" />
+
+    <!-- Favicons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="GrokClips" />
-    <link rel="manifest" href="manifest.json" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>GrokClips</title>
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Theme and App -->
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Preconnect to external domains for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://picsum.photos" />
+    <link rel="preconnect" href="https://grokipedia.com" />
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "GrokClips",
+      "description": "A modern, TikTok-style interface for exploring Grokipedia articles with random discovery, beautiful design, and offline support.",
+      "url": "https://grokclips.vercel.app",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Web Browser",
+      "author": {
+        "@type": "Person",
+        "name": "Olaoluwasubomi",
+        "url": "https://x.com/olanotolu",
+        "sameAs": [
+          "https://github.com/olanotolu",
+          "https://ko-fi.com/olaoluwasubomi"
+        ]
+      },
+      "creator": {
+        "@type": "Person",
+        "name": "Olaoluwasubomi",
+        "url": "https://x.com/olanotolu"
+      },
+      "publisher": {
+        "@type": "Person",
+        "name": "Olaoluwasubomi"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Random article discovery",
+        "Vertical scrolling interface",
+        "Offline article caching",
+        "Advanced search functionality",
+        "Dark/light theme support",
+        "Progressive Web App",
+        "Touch and keyboard navigation"
+      ],
+      "screenshot": "https://grokclips.vercel.app/grok-logo.svg",
+      "softwareVersion": "2.0.0",
+      "datePublished": "2025-01-01",
+      "dateModified": "2025-11-02",
+      "inLanguage": "en-US",
+      "isAccessibleForFree": true,
+      "applicationSubCategory": "Knowledge Discovery",
+      "downloadUrl": "https://grokclips.vercel.app"
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
