@@ -22,8 +22,6 @@ function App() {
   const [showSearch, setShowSearch] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const lastScrollY = useRef(0);
-  const touchStartY = useRef(0);
-  const touchStartTime = useRef(0);
 
   // Virtual scrolling setup
   const rowVirtualizer = useVirtualizer({
@@ -117,11 +115,9 @@ function App() {
     const handleTouchEnd = (e: TouchEvent) => {
       if (!parentRef.current || !touchStartTime) return;
 
-      const touchEndX = e.changedTouches[0].clientX;
       const touchEndY = e.changedTouches[0].clientY;
       const touchEndTime = Date.now();
 
-      const deltaX = touchEndX - touchStartX;
       const deltaY = touchEndY - touchStartY;
       const deltaTime = touchEndTime - touchStartTime;
 
