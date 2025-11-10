@@ -42,23 +42,37 @@ const parseGrokipediaArticle = (htmlContent: string, filename: string): GrokArti
     const descMatch = htmlContent.match(/<meta name="description" content="([^"]+)"/);
     const description = descMatch ? descMatch[1] : '';
 
-    // Extract main content from span elements with the content class
-    const contentMatches = htmlContent.match(/<span class="mb-4 block break-words text-\[1em\] leading-7"[^>]*>(.*?)<\/span>/g);
+    // Extract main content from various span and paragraph elements
+    // Look for content spans with different class patterns
+    const contentSelectors = [
+      /<span class="[^"]*text-\[[^\]]+\][^"]*"[^>]*>(.*?)<\/span>/g,
+      /<p[^>]*>(.*?)<\/p>/g,
+      /<div class="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/g,
+      /<article[^>]*>(.*?)<\/article>/g
+    ];
+
     let extract = '';
 
-    if (contentMatches) {
-      extract = contentMatches
-        .map(match => {
-          // Remove HTML tags and clean up the text
-          return match
-            .replace(/<[^>]*>/g, '') // Remove HTML tags
-            .replace(/&[^;]+;/g, ' ') // Replace HTML entities
-            .replace(/\s+/g, ' ') // Normalize whitespace
-            .trim();
-        })
-        .filter(text => text.length > 50) // Only keep substantial paragraphs
-        .slice(0, 3) // Take first 3 substantial paragraphs
-        .join(' ');
+    for (const selector of contentSelectors) {
+      const matches = htmlContent.match(selector);
+      if (matches && matches.length > 0) {
+        const contentParts = matches
+          .map(match => {
+            // Remove HTML tags and clean up the text
+            return match
+              .replace(/<[^>]*>/g, '') // Remove HTML tags
+              .replace(/&[^;]+;/g, ' ') // Replace HTML entities
+              .replace(/\s+/g, ' ') // Normalize whitespace
+              .trim();
+          })
+          .filter(text => text.length > 20 && !text.includes('http') && !text.includes('@')) // Filter out links and short fragments
+          .slice(0, 3); // Take first 3 substantial paragraphs
+
+        if (contentParts.length > 0) {
+          extract = contentParts.join(' ');
+          break;
+        }
+      }
     }
 
     // Fallback to description if no content found
@@ -77,10 +91,16 @@ const parseGrokipediaArticle = (htmlContent: string, filename: string): GrokArti
     const slug = filename.replace('grokipedia.com_page_', '').replace('.html', '');
     const url = `https://grokipedia.com/page/${slug}`;
 
+    // Skip if we can't extract meaningful content
+    if (!extract || extract.length < 10) {
+      console.warn(`Skipping article ${filename} - insufficient content`);
+      return null;
+    }
+
     return {
       title,
       displaytitle: title,
-      extract: extract || description || 'No content available',
+      extract: extract.substring(0, 300) + (extract.length > 300 ? '...' : ''), // Limit extract length
       pageid: Math.random(),
       thumbnail,
       url
@@ -175,12 +195,18 @@ const loadLocalArticles = async (
 
 export function useGrokArticles() {
   const [articles, setArticles] = useState<GrokArticle[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [buffer, setBuffer] = useState<GrokArticle[]>([]);
-  const [reserveBuffer, setReserveBuffer] = useState<GrokArticle[]>([]);
+  const [_loading, _setLoading] = useState(false);
+  const [_buffer, setBuffer] = useState<GrokArticle[]>([]);
+  const [_reserveBuffer, setReserveBuffer] = useState<GrokArticle[]>([]);
   const shownArticlesRef = useRef<Set<string>>(new Set());
   const scrollSpeedRef = useRef<number>(0);
   const lastScrollTimeRef = useRef<number>(Date.now());
+
+  // Smart loading controls
+  const loadingRef = useRef(false);
+  const lastLoadTimeRef = useRef(0);
+  const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isNearBottomRef = useRef(false);
 
   // Dynamic batch sizing based on scroll speed
   const getDynamicBatchSize = useCallback(() => {
@@ -192,17 +218,52 @@ export function useGrokArticles() {
     return 30; // Normal scrolling
   }, []);
 
+  // Smart loading: Prevent excessive loading with debouncing
+  const smartLoadArticles = useCallback((targetBuffer = false, targetReserve = false, batchSize?: number) => {
+    const now = Date.now();
+    const timeSinceLastLoad = now - lastLoadTimeRef.current;
+
+    // Don't load if already loading
+    if (loadingRef.current) return;
+
+    // Don't load too frequently (minimum 500ms between loads)
+    if (timeSinceLastLoad < 500) {
+      // Cancel existing timeout and schedule new one
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current);
+      }
+      loadTimeoutRef.current = setTimeout(() => {
+        smartLoadArticles(targetBuffer, targetReserve, batchSize);
+      }, 500 - timeSinceLastLoad);
+      return;
+    }
+
+    // Only load if near bottom or explicitly requested
+    if (!targetBuffer && !targetReserve && !isNearBottomRef.current) {
+      return;
+    }
+
+    loadingRef.current = true;
+    lastLoadTimeRef.current = now;
+
+    fetchArticles(targetBuffer, targetReserve, batchSize).finally(() => {
+      loadingRef.current = false;
+    });
+  }, []);
+
   const fetchArticles = async (
     forBuffer = false,
     forReserve = false,
     customBatchSize?: number
   ) => {
-    if (loading) return;
-    setLoading(true);
-
     try {
       const batchSize = customBatchSize || getDynamicBatchSize();
       const newArticles = await loadLocalArticles(shownArticlesRef.current, batchSize);
+
+      if (newArticles.length === 0) {
+        // No more articles available
+        return;
+      }
 
       // Preload images with timeout to prevent hanging
       const imagePromises = newArticles
@@ -211,66 +272,88 @@ export function useGrokArticles() {
           Promise.race([
             preloadImage(article.thumbnail!.source),
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Image preload timeout')), 3000)
+              setTimeout(() => reject(new Error('Image preload timeout')), 2000)
             )
           ])
         );
 
-      await Promise.allSettled(imagePromises);
+      // Don't wait for all images, just start them
+      Promise.allSettled(imagePromises).catch(() => {
+        // Silently handle image loading errors
+      });
 
       if (forReserve) {
         setReserveBuffer((prev) => [...prev, ...newArticles]);
       } else if (forBuffer) {
         setBuffer((prev) => [...prev, ...newArticles]);
-        // Pre-fill reserve buffer for ultra-smooth scrolling
-        if (reserveBuffer.length < 20) {
-          fetchArticles(false, true, Math.floor(batchSize / 2));
-        }
       } else {
         setArticles((prev) => [...prev, ...newArticles]);
-        // Maintain both buffers
-        fetchArticles(true, false, batchSize);
-        if (reserveBuffer.length < 15) {
-          fetchArticles(false, true, Math.floor(batchSize / 2));
-        }
+        // Smart buffer management - only fill if critically low
+        setTimeout(() => {
+          setBuffer((currentBuffer) => {
+            if (currentBuffer.length < 5) { // Reduced threshold
+              smartLoadArticles(true, false, Math.floor(batchSize * 0.8));
+            }
+            return currentBuffer;
+          });
+          setReserveBuffer((currentReserve) => {
+            if (currentReserve.length < 3) { // Reduced threshold
+              smartLoadArticles(false, true, Math.floor(batchSize * 0.5));
+            }
+            return currentReserve;
+          });
+        }, 200); // Increased delay
       }
     } catch (error) {
       console.error("Error fetching articles:", error);
     }
-
-    setLoading(false);
   };
 
   const getMoreArticles = useCallback(() => {
     // Priority: buffer -> reserve buffer -> fresh load
-    if (buffer.length > 0) {
-      setArticles((prev) => [...prev, ...buffer]);
-      setBuffer([]);
-
-      // Refill buffer from reserve if available
-      if (reserveBuffer.length > 10) {
-        const reserveBatch = reserveBuffer.slice(0, 20);
-        setReserveBuffer((prev) => prev.slice(20));
-        setBuffer(reserveBatch);
+    setBuffer((currentBuffer) => {
+      if (currentBuffer.length > 0) {
+        setArticles((prev) => [...prev, ...currentBuffer]);
+        // Refill buffer from reserve if available
+        setReserveBuffer((currentReserve) => {
+          if (currentReserve.length > 10) {
+            const reserveBatch = currentReserve.slice(0, 20);
+            // Fill buffer with reserve batch
+            setBuffer(reserveBatch);
+            return currentReserve.slice(20);
+          } else {
+            // Refill both buffers
+            setTimeout(() => {
+              fetchArticles(true);
+              fetchArticles(false, true);
+            }, 0);
+            return currentReserve;
+          }
+        });
+        return [];
       } else {
-        // Refill both buffers
-        fetchArticles(true);
-        fetchArticles(false, true);
+        // Check reserve buffer
+        setReserveBuffer((currentReserve) => {
+          if (currentReserve.length > 0) {
+            // Use reserve buffer directly
+            const reserveBatch = currentReserve.slice(0, 25);
+            setArticles((prev) => [...prev, ...reserveBatch]);
+            // Refill buffers
+            setTimeout(() => {
+              fetchArticles(true);
+              fetchArticles(false, true);
+            }, 0);
+            return currentReserve.slice(25);
+          } else {
+            // Emergency load
+            setTimeout(() => fetchArticles(false), 0);
+            return currentReserve;
+          }
+        });
+        return currentBuffer;
       }
-    } else if (reserveBuffer.length > 0) {
-      // Use reserve buffer directly
-      const reserveBatch = reserveBuffer.slice(0, 25);
-      setReserveBuffer((prev) => prev.slice(25));
-      setArticles((prev) => [...prev, ...reserveBatch]);
-
-      // Refill buffers
-      fetchArticles(true);
-      fetchArticles(false, true);
-    } else {
-      // Emergency load
-      fetchArticles(false);
-    }
-  }, [buffer, reserveBuffer]);
+    });
+  }, []);
 
   // Track scroll speed for dynamic batch sizing
   const updateScrollSpeed = useCallback((scrollDelta: number) => {
@@ -282,15 +365,34 @@ export function useGrokArticles() {
 
   // Memory management: cleanup old articles to prevent memory leaks
   useEffect(() => {
-    if (articles.length > 200) { // Keep max 200 articles in memory
-      setArticles((prev) => prev.slice(-150)); // Keep last 150, remove oldest 50
+    if (articles.length > 150) { // Reduced limit for better performance
+      setArticles((prev) => prev.slice(-100)); // Keep last 100, remove oldest 50
+      // Also clean up shown articles set to prevent memory bloat
+      setTimeout(() => {
+        const shownArray = Array.from(shownArticlesRef.current);
+        if (shownArray.length > 200) {
+          // Keep only the most recent 150 shown articles
+          const recentShown = new Set(shownArray.slice(-150));
+          shownArticlesRef.current = recentShown;
+        }
+      }, 1000);
     }
   }, [articles.length]);
 
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return {
     articles,
-    loading,
+    loading: _loading,
     fetchArticles: getMoreArticles,
+    fetchArticlesInternal: fetchArticles,
     updateScrollSpeed
   };
 }

@@ -12,6 +12,7 @@
     "vercel-deploy": "vercel --prod"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.81.0",
     "@tailwindcss/postcss": "^4.0.3",
     "@tailwindcss/vite": "^4.0.3",
     "@tanstack/react-virtual": "^3.13.12",

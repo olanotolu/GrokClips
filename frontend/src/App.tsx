@@ -1,20 +1,24 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { GrokCard } from "./components/GrokCard";
-import { Loader2, Search, X, Download, Heart, Sun, Moon, Monitor } from "lucide-react";
+import { Loader2, Search, X, Download, Heart, Sun, Moon, Monitor, User, LogOut } from "lucide-react";
 import { Analytics } from "@vercel/analytics/react";
 import { LanguageSelector } from "./components/LanguageSelector";
 import { useLikedArticles } from "./contexts/LikedArticlesContext";
 import { useGrokArticles } from "./hooks/useGrokipediaArticles";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTheme } from "./contexts/ThemeContext";
+import { useAuth } from "./contexts/AuthContext";
+import { AuthModal } from "./components/AuthModal";
 import { SkeletonLoader } from "./components/SkeletonCard";
 
 function App() {
   const [showAbout, setShowAbout] = useState(false);
   const [showLikes, setShowLikes] = useState(false);
-  const { articles, loading, fetchArticles, updateScrollSpeed } = useGrokArticles();
+  const [showAuth, setShowAuth] = useState(false);
+  const { articles, loading, fetchArticles, fetchArticlesInternal, updateScrollSpeed } = useGrokArticles();
   const { likedArticles, toggleLike } = useLikedArticles();
   const { theme, actualTheme, setTheme } = useTheme();
+  const { user, signOut } = useAuth();
   const observerTarget = useRef(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,8 +38,14 @@ function App() {
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
       const [target] = entries;
+      // Only trigger loading if we're actually near the bottom and not already loading
       if (target.isIntersecting && !loading) {
-        fetchArticles();
+        // Add a small delay to prevent rapid-fire loading
+        setTimeout(() => {
+          if (!loading) {
+            fetchArticles();
+          }
+        }, 100);
       }
     },
     [loading, fetchArticles]
@@ -247,7 +257,13 @@ function App() {
   }, []);
 
   useEffect(() => {
-    fetchArticles();
+    // Smart initial load - load enough for smooth scrolling
+    fetchArticlesInternal(false, false, 20); // Load 20 articles initially
+    // Pre-fill buffers immediately after
+    setTimeout(() => {
+      fetchArticlesInternal(true, false, 15); // Buffer
+      fetchArticlesInternal(false, true, 10); // Reserve
+    }, 500);
   }, []);
 
   const filteredLikedArticles = likedArticles.filter(
@@ -367,6 +383,70 @@ function App() {
                   {theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System'}
                 </div>
               </button>
+
+              {/* Authentication Button */}
+              {user ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowAuth(!showAuth)}
+                    className="group relative p-3 rounded-full backdrop-blur-sm border transition-all duration-300 transform hover:scale-110 active:scale-95 touch-manipulation"
+                    style={{
+                      backgroundColor: 'var(--hover-bg)',
+                      borderColor: 'var(--border-secondary)',
+                      color: 'var(--text-primary)',
+                      minHeight: '44px',
+                      minWidth: '44px',
+                    }}
+                    aria-label="User account"
+                    title="User account"
+                  >
+                    <User className="w-5 h-5" />
+                  </button>
+
+                  {showAuth && (
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-black/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50 animate-in fade-in duration-200">
+                      <div className="p-2">
+                        <div className="px-3 py-2 border-b border-white/10">
+                          <p className="text-sm text-white font-medium truncate">
+                            {user.email}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Signed in
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            signOut()
+                            setShowAuth(false)
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-3 text-left text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200 active:scale-95 touch-manipulation"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          <span className="text-sm">Sign Out</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAuth(true)}
+                  className="px-3 sm:px-4 py-2 text-sm font-medium rounded-full backdrop-blur-sm border transition-all duration-300 active:scale-95 touch-manipulation"
+                  style={{
+                    color: 'var(--text-secondary)',
+                    backgroundColor: 'var(--hover-bg)',
+                    borderColor: 'var(--border-primary)',
+                    minHeight: '40px',
+                    minWidth: '60px',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                >
+                  <span className="hidden sm:inline">Sign In</span>
+                  <span className="sm:hidden">👤</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setShowAbout(!showAbout)}
                 className="px-3 sm:px-4 py-2 text-sm font-medium rounded-full backdrop-blur-sm border transition-all duration-300 active:scale-95 touch-manipulation"
@@ -735,8 +815,8 @@ function App() {
         className="h-screen w-full overflow-auto snap-y snap-mandatory hide-scroll mobile-scroll"
         style={{ contain: 'strict' }}
       >
-        {articles.length === 0 && loading ? (
-          // Show skeleton loader when no articles and loading
+        {articles.length === 0 ? (
+          // Show skeleton loader when no articles at all
           <SkeletonLoader count={5} />
         ) : (
           // Show virtualized articles when available
@@ -815,6 +895,14 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={showAuth && !user}
+        onClose={() => setShowAuth(false)}
+        initialMode="signin"
+      />
+
       <Analytics />
     </div>
   );
