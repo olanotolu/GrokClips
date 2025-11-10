@@ -76,30 +76,34 @@ export function GrokCard({ article }: GrokCardProps) {
                 )}
 
                 {/* Content Container with Simple Glassmorphism */}
-                <div className="absolute bottom-0 left-0 right-0 p-6 z-10">
-                    <div className="bg-black/30 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl shadow-black/50">
+                <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 z-10">
+                    <div className="bg-black/30 backdrop-blur-xl border border-white/10 rounded-2xl p-4 sm:p-6 shadow-2xl shadow-black/50">
                         <div className="flex justify-between items-start mb-4">
                             <a
                                 href={article.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex-1 hover:text-gray-200 transition-colors"
+                                className="flex-1 hover:text-gray-200 transition-colors active:scale-98"
                             >
-                                <h2 className="text-2xl font-bold text-white mb-2 leading-tight">
+                                <h2 className="text-xl sm:text-2xl font-bold text-white mb-2 leading-tight line-clamp-3">
                                     {article.displaytitle}
                                 </h2>
                             </a>
-                            <div className="flex gap-3 ml-4">
+                            <div className="flex gap-2 sm:gap-3 ml-4 flex-shrink-0">
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         toggleLike(article);
                                     }}
-                                    className={`p-3 rounded-full backdrop-blur-sm border transition-all duration-300 transform hover:scale-110 ${
+                                    className={`p-3 rounded-full backdrop-blur-sm border transition-all duration-300 transform hover:scale-110 active:scale-95 touch-manipulation ${
                                         isLiked(article.pageid)
                                             ? 'bg-red-500/90 border-red-400/50 text-white'
                                             : 'bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/30'
                                     }`}
+                                    style={{
+                                        minHeight: '44px',
+                                        minWidth: '44px',
+                                    }}
                                     aria-label="Like article"
                                 >
                                     <Heart
@@ -113,7 +117,11 @@ export function GrokCard({ article }: GrokCardProps) {
                                         e.stopPropagation();
                                         handleShare();
                                     }}
-                                    className="p-3 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20 hover:border-white/30 transition-all duration-300 transform hover:scale-110"
+                                    className="p-3 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20 hover:border-white/30 transition-all duration-300 transform hover:scale-110 active:scale-95 touch-manipulation"
+                                    style={{
+                                        minHeight: '44px',
+                                        minWidth: '44px',
+                                    }}
                                     aria-label="Share article"
                                 >
                                     <Share2 className="w-5 h-5" />
@@ -121,20 +129,20 @@ export function GrokCard({ article }: GrokCardProps) {
                             </div>
                         </div>
 
-                        <p className="text-gray-200 mb-6 leading-relaxed line-clamp-4 text-base">
+                        <p className="text-gray-200 mb-4 sm:mb-6 leading-relaxed line-clamp-3 sm:line-clamp-4 text-sm sm:text-base">
                             {article.extract}
                         </p>
 
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
                             <a
                                 href={article.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-white/80 hover:text-white transition-colors font-medium group"
+                                className="inline-flex items-center gap-2 text-white/80 hover:text-white transition-colors font-medium group active:scale-95 touch-manipulation"
                             >
-                                <span>Read full article</span>
+                                <span className="text-sm sm:text-base">Read full article</span>
                                 <svg
-                                    className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
+                                    className="w-3 h-3 sm:w-4 sm:h-4 transition-transform duration-200 group-hover:translate-x-1"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -143,9 +151,10 @@ export function GrokCard({ article }: GrokCardProps) {
                                 </svg>
                             </a>
 
-                            {/* Subtle interaction hint */}
-                            <div className="text-xs text-gray-400 opacity-60">
-                                Double-tap to like
+                            {/* Mobile-friendly interaction hint */}
+                            <div className="text-xs text-gray-400 opacity-60 sm:opacity-60 text-center sm:text-right">
+                                <span className="hidden sm:inline">Double-tap to like</span>
+                                <span className="sm:hidden">♥ Double-tap to like</span>
                             </div>
                         </div>
                     </div>

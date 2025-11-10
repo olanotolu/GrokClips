@@ -86,31 +86,60 @@ function App() {
     }
   }, [updateScrollSpeed]);
 
-  // Swipe gesture handling for mobile navigation
+  // Enhanced swipe gesture handling for mobile navigation
   useEffect(() => {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    let isHorizontalSwipe = false;
+
     const handleTouchStart = (e: TouchEvent) => {
-      touchStartY.current = e.touches[0].clientY;
-      touchStartTime.current = Date.now();
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchStartTime = Date.now();
+      isHorizontalSwipe = false;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!touchStartTime) return;
+
+      const touchCurrentX = e.touches[0].clientX;
+      const touchCurrentY = e.touches[0].clientY;
+      const deltaX = Math.abs(touchCurrentX - touchStartX);
+      const deltaY = Math.abs(touchCurrentY - touchStartY);
+
+      // Determine if this is a horizontal swipe (for potential future features)
+      if (deltaX > deltaY && deltaX > 10) {
+        isHorizontalSwipe = true;
+      }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      if (!parentRef.current) return;
+      if (!parentRef.current || !touchStartTime) return;
 
+      const touchEndX = e.changedTouches[0].clientX;
       const touchEndY = e.changedTouches[0].clientY;
       const touchEndTime = Date.now();
-      const deltaY = touchStartY.current - touchEndY;
-      const deltaTime = touchEndTime - touchStartTime.current;
 
-      // Minimum swipe distance and velocity thresholds
-      const minSwipeDistance = 50;
-      const maxSwipeTime = 300;
+      const deltaX = touchEndX - touchStartX;
+      const deltaY = touchEndY - touchStartY;
+      const deltaTime = touchEndTime - touchStartTime;
 
-      if (Math.abs(deltaY) > minSwipeDistance && deltaTime < maxSwipeTime) {
+      // Enhanced swipe thresholds for better mobile experience
+      const minSwipeDistance = window.innerWidth * 0.1; // 10% of screen width
+      const maxSwipeTime = 500; // Increased for more natural feel
+      const minVelocity = 0.3; // Minimum velocity threshold
+
+      const distance = Math.abs(deltaY);
+      const velocity = distance / deltaTime;
+
+      // Only handle vertical swipes that aren't horizontal and meet thresholds
+      if (!isHorizontalSwipe && distance > minSwipeDistance && deltaTime < maxSwipeTime && velocity > minVelocity) {
         const currentScrollTop = parentRef.current.scrollTop;
         const windowHeight = window.innerHeight;
 
-        if (deltaY > 0) {
-          // Swipe up - next article
+        if (deltaY < 0) {
+          // Swipe up - next article (more sensitive for mobile)
           const nextScrollTop = Math.ceil((currentScrollTop + windowHeight) / windowHeight) * windowHeight;
           parentRef.current.scrollTo({
             top: nextScrollTop,
@@ -127,15 +156,21 @@ function App() {
           }
         }
       }
+
+      // Reset touch tracking
+      touchStartTime = 0;
+      isHorizontalSwipe = false;
     };
 
     const scrollElement = parentRef.current;
     if (scrollElement) {
       scrollElement.addEventListener('touchstart', handleTouchStart, { passive: true });
+      scrollElement.addEventListener('touchmove', handleTouchMove, { passive: true });
       scrollElement.addEventListener('touchend', handleTouchEnd, { passive: true });
 
       return () => {
         scrollElement.removeEventListener('touchstart', handleTouchStart);
+        scrollElement.removeEventListener('touchmove', handleTouchMove);
         scrollElement.removeEventListener('touchend', handleTouchEnd);
       };
     }
@@ -269,11 +304,11 @@ function App() {
           </div>
         )}
 
-        <div className="max-w-screen-xl mx-auto px-4 py-3">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
           <div className="flex justify-between items-center">
             <button
               onClick={() => window.location.reload()}
-              className="text-2xl font-bold transition-all duration-300 transform hover:scale-105"
+              className="text-xl sm:text-2xl font-bold transition-all duration-300 transform hover:scale-105 active:scale-95"
               style={{
                 color: 'var(--text-primary)',
                 filter: actualTheme === 'dark' ? 'brightness(1.1)' : 'brightness(0.9)'
@@ -282,21 +317,23 @@ function App() {
               GrokClips
             </button>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={() => setShowSearch(!showSearch)}
-                className="group relative p-3 rounded-full backdrop-blur-sm border transition-all duration-300 transform hover:scale-110"
+                className="group relative p-3 sm:p-3 rounded-full backdrop-blur-sm border transition-all duration-300 transform hover:scale-110 active:scale-95 touch-manipulation"
                 style={{
                   backgroundColor: 'var(--hover-bg)',
                   borderColor: 'var(--border-secondary)',
                   color: 'var(--text-primary)',
+                  minHeight: '44px',
+                  minWidth: '44px',
                 }}
                 aria-label="Search articles (⌘K)"
                 title="Search articles (⌘K)"
               >
                 <Search className="w-5 h-5" />
                 <div
-                  className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap"
+                  className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap hidden sm:block"
                   style={{
                     backgroundColor: 'var(--bg-tertiary)',
                     color: 'var(--text-primary)'
@@ -310,11 +347,13 @@ function App() {
                   const nextTheme = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark';
                   setTheme(nextTheme);
                 }}
-                className="group relative p-3 rounded-full backdrop-blur-sm border transition-all duration-300 transform hover:scale-110"
+                className="group relative p-3 rounded-full backdrop-blur-sm border transition-all duration-300 transform hover:scale-110 active:scale-95 touch-manipulation"
                 style={{
                   backgroundColor: 'var(--hover-bg)',
                   borderColor: 'var(--border-secondary)',
                   color: 'var(--text-primary)',
+                  minHeight: '44px',
+                  minWidth: '44px',
                 }}
                 aria-label={`Current theme: ${theme}. Click to cycle themes`}
                 title={`Current theme: ${theme}. Click to cycle themes`}
@@ -323,7 +362,7 @@ function App() {
                 {theme === 'light' && <Sun className="w-5 h-5" />}
                 {theme === 'system' && <Monitor className="w-5 h-5" />}
                 <div
-                  className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap"
+                  className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap hidden sm:block"
                   style={{
                     backgroundColor: 'var(--bg-tertiary)',
                     color: 'var(--text-primary)'
@@ -334,29 +373,35 @@ function App() {
               </button>
               <button
                 onClick={() => setShowAbout(!showAbout)}
-                className="px-4 py-2 text-sm font-medium rounded-full backdrop-blur-sm border transition-all duration-300"
+                className="px-3 sm:px-4 py-2 text-sm font-medium rounded-full backdrop-blur-sm border transition-all duration-300 active:scale-95 touch-manipulation"
                 style={{
                   color: 'var(--text-secondary)',
                   backgroundColor: 'var(--hover-bg)',
                   borderColor: 'var(--border-primary)',
+                  minHeight: '40px',
+                  minWidth: '60px',
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
-                About
+                <span className="hidden sm:inline">About</span>
+                <span className="sm:hidden">?</span>
               </button>
               <button
                 onClick={() => setShowLikes(!showLikes)}
-                className="px-4 py-2 text-sm font-medium rounded-full backdrop-blur-sm border transition-all duration-300"
+                className="px-3 sm:px-4 py-2 text-sm font-medium rounded-full backdrop-blur-sm border transition-all duration-300 active:scale-95 touch-manipulation"
                 style={{
                   color: 'var(--text-secondary)',
                   backgroundColor: 'var(--hover-bg)',
                   borderColor: 'var(--border-primary)',
+                  minHeight: '40px',
+                  minWidth: '60px',
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
-                Likes
+                <span className="hidden sm:inline">Likes</span>
+                <span className="sm:hidden">♥</span>
               </button>
               <div
                 className="backdrop-blur-sm rounded-full border"
@@ -436,19 +481,20 @@ function App() {
       )}
 
       {showLikes && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-black/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 rounded-2xl w-full max-w-2xl h-[85vh] flex flex-col relative overflow-hidden">
-            <div className="relative z-10 p-6">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-300">
+          <div className="bg-black/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 rounded-2xl w-full max-w-2xl h-[90vh] sm:h-[85vh] flex flex-col relative overflow-hidden">
+            <div className="relative z-10 p-4 sm:p-6">
               <button
                 onClick={() => setShowLikes(false)}
-                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-all duration-200"
+                className="absolute top-3 right-3 sm:top-4 sm:right-4 w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-all duration-200 active:scale-95 touch-manipulation"
+                style={{ minHeight: '44px', minWidth: '44px' }}
               >
                 ✕
               </button>
 
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-0">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">
                     Liked Articles
                   </h2>
                   <p className="text-gray-400 text-sm mt-1">
@@ -458,23 +504,26 @@ function App() {
                 {likedArticles.length > 0 && (
                   <button
                     onClick={handleExport}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-300 transform hover:scale-105"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 touch-manipulation self-start sm:self-auto"
+                    style={{ minHeight: '40px' }}
                     title="Export liked articles"
                   >
                     <Download className="w-4 h-4" />
-                    Export
+                    <span className="hidden sm:inline">Export</span>
+                    <span className="sm:hidden">Save</span>
                   </button>
                 )}
               </div>
 
-              <div className="relative mb-6">
+              <div className="relative mb-4 sm:mb-6">
                 <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search your liked articles..."
-                  className="w-full bg-black/50 border border-gray-700 text-white px-4 py-3 pl-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-200 placeholder-gray-400"
+                  className="w-full bg-black/50 border border-gray-700 text-white px-4 py-4 sm:py-3 pl-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-200 placeholder-gray-400 text-base"
+                  style={{ minHeight: '48px' }}
                 />
               </div>
 
@@ -496,16 +545,16 @@ function App() {
                     {filteredLikedArticles.map((article, index) => (
                       <div
                         key={`${article.pageid}-${Date.now()}`}
-                        className="group bg-gray-900/30 border border-gray-700/50 rounded-xl p-4 hover:bg-gray-900/50 hover:border-gray-600/50 transition-all duration-200"
+                        className="group bg-gray-900/30 border border-gray-700/50 rounded-xl p-3 sm:p-4 hover:bg-gray-900/50 hover:border-gray-600/50 transition-all duration-200 active:scale-98 touch-manipulation"
                         style={{ animationDelay: `${index * 50}ms` }}
                       >
-                        <div className="flex gap-4">
+                        <div className="flex gap-3 sm:gap-4">
                           {article.thumbnail && (
                             <div className="flex-shrink-0">
                               <img
                                 src={article.thumbnail.source}
                                 alt={article.title}
-                                className="w-16 h-16 object-cover rounded-lg shadow-md"
+                                className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-lg shadow-md"
                               />
                             </div>
                           )}
@@ -515,13 +564,14 @@ function App() {
                                 href={article.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="font-semibold text-white hover:text-gray-200 transition-colors line-clamp-2 pr-2"
+                                className="font-semibold text-white hover:text-gray-200 transition-colors line-clamp-2 pr-2 text-sm sm:text-base active:scale-95 touch-manipulation"
                               >
                                 {article.title}
                               </a>
                               <button
                                 onClick={() => toggleLike(article)}
-                                className="text-red-400 hover:text-red-300 hover:bg-red-500/20 p-1.5 rounded-full transition-all duration-200 opacity-0 group-hover:opacity-100"
+                                className="text-red-400 hover:text-red-300 hover:bg-red-500/20 p-2 rounded-full transition-all duration-200 opacity-0 group-hover:opacity-100 sm:opacity-100 flex-shrink-0"
+                                style={{ minHeight: '36px', minWidth: '36px' }}
                                 aria-label="Remove from likes"
                               >
                                 <X className="w-4 h-4" />
@@ -547,19 +597,20 @@ function App() {
       )}
 
       {showSearch && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-black/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 rounded-2xl w-full max-w-2xl h-[80vh] flex flex-col relative overflow-hidden">
-            <div className="relative z-10 p-6">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-300">
+          <div className="bg-black/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 rounded-2xl w-full max-w-2xl h-[85vh] sm:h-[80vh] flex flex-col relative overflow-hidden">
+            <div className="relative z-10 p-4 sm:p-6">
               <button
                 onClick={() => setShowSearch(false)}
-                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-all duration-200"
+                className="absolute top-3 right-3 sm:top-4 sm:right-4 w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-all duration-200 active:scale-95 touch-manipulation"
+                style={{ minHeight: '44px', minWidth: '44px' }}
               >
                 ✕
               </button>
 
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-4 sm:mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">
                     Search Articles
                   </h2>
                   <p className="text-gray-400 text-sm mt-1">
@@ -575,24 +626,25 @@ function App() {
                 {globalSearchQuery && (
                   <button
                     onClick={() => setGlobalSearchQuery("")}
-                    className="text-sm text-gray-400 hover:text-white transition-colors"
+                    className="text-sm text-gray-400 hover:text-white transition-colors active:scale-95 touch-manipulation px-3 py-2"
                   >
                     Clear search
                   </button>
                 )}
               </div>
 
-              <div className="relative mb-6">
+              <div className="relative mb-4 sm:mb-6">
                 <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                 <input
                   type="text"
                   value={globalSearchQuery}
                   onChange={(e) => setGlobalSearchQuery(e.target.value)}
                   placeholder="Search articles..."
-                  className="w-full bg-black/50 border border-gray-700 text-white px-4 py-3 pl-10 pr-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-200 placeholder-gray-400"
+                  className="w-full bg-black/50 border border-gray-700 text-white px-4 py-4 sm:py-3 pl-10 pr-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-200 placeholder-gray-400 text-base"
+                  style={{ minHeight: '48px' }}
                   autoFocus
                 />
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 hidden sm:block">
                   ⌘K
                 </div>
               </div>
@@ -684,7 +736,7 @@ function App() {
       {/* Virtual Scrolling Container */}
       <div
         ref={parentRef}
-        className="h-screen w-full overflow-auto snap-y snap-mandatory hide-scroll"
+        className="h-screen w-full overflow-auto snap-y snap-mandatory hide-scroll mobile-scroll"
         style={{ contain: 'strict' }}
       >
         {articles.length === 0 && loading ? (
