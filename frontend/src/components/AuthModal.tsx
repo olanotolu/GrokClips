@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { X, Eye, EyeOff, Mail, Lock } from 'lucide-react'
+import { X, Eye, EyeOff, Mail, Lock, CheckCircle, AlertCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { InlineLoader } from './SkeletonCard'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -17,8 +18,34 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signin' }: AuthModal
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [emailValid, setEmailValid] = useState(false)
+  const [passwordValid, setPasswordValid] = useState(false)
 
   const { signIn, signUp } = useAuth()
+
+  // Real-time validation
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const validatePassword = (password: string) => {
+    return password.length >= 6
+  }
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const email = e.target.value
+    setEmail(email)
+    setEmailValid(validateEmail(email))
+    setError('') // Clear error when user starts typing
+  }
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const password = e.target.value
+    setPassword(password)
+    setPasswordValid(validatePassword(password))
+    setError('') // Clear error when user starts typing
+  }
 
   const resetForm = () => {
     setEmail('')
@@ -98,48 +125,92 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signin' }: AuthModal
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                 Email
+                {email && (
+                  emailValid ? (
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-400" />
+                  )
+                )}
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 transition-colors ${
+                  emailValid ? 'text-green-400' : email ? 'text-red-400' : 'text-gray-400'
+                }`} />
                 <input
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={handleEmailChange}
                   placeholder="your@email.com"
-                  className="w-full bg-black/50 border border-gray-700 text-white px-4 py-4 pl-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-200 text-base"
+                  className={`w-full bg-black/50 border text-white px-4 py-4 pl-12 pr-12 rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-base ${
+                    emailValid
+                      ? 'border-green-500 focus:ring-green-500/50 focus:border-green-500'
+                      : email
+                        ? 'border-red-500 focus:ring-red-500/50 focus:border-red-500'
+                        : 'border-gray-700 focus:ring-white/50 focus:border-white/50'
+                  }`}
                   style={{ minHeight: '48px' }}
                   required
                 />
+                {email && emailValid && (
+                  <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-green-400" />
+                )}
               </div>
+              {email && !emailValid && (
+                <p className="text-red-400 text-xs mt-1">Please enter a valid email address</p>
+              )}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                 Password
+                {password && (
+                  passwordValid ? (
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-400" />
+                  )
+                )}
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 transition-colors ${
+                  passwordValid ? 'text-green-400' : password ? 'text-red-400' : 'text-gray-400'
+                }`} />
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={handlePasswordChange}
                   placeholder="••••••••"
-                  className="w-full bg-black/50 border border-gray-700 text-white px-4 py-4 pl-12 pr-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-200 text-base"
+                  className={`w-full bg-black/50 border text-white px-4 py-4 pl-12 pr-16 rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-base ${
+                    passwordValid
+                      ? 'border-green-500 focus:ring-green-500/50 focus:border-green-500'
+                      : password
+                        ? 'border-red-500 focus:ring-red-500/50 focus:border-red-500'
+                        : 'border-gray-700 focus:ring-white/50 focus:border-white/50'
+                  }`}
                   style={{ minHeight: '48px' }}
                   required
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
+                  {password && passwordValid && (
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
+              {password && !passwordValid && (
+                <p className="text-red-400 text-xs mt-1">Password must be at least 6 characters</p>
+              )}
             </div>
 
             {mode === 'signup' && (
@@ -177,14 +248,18 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signin' }: AuthModal
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-white text-black font-semibold py-4 rounded-xl hover:bg-gray-200 transition-all duration-300 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none touch-manipulation"
+              disabled={loading || !emailValid || !passwordValid || (mode === 'signup' && password !== confirmPassword)}
+              className={`w-full font-semibold py-4 rounded-xl transition-all duration-300 transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none touch-manipulation ${
+                emailValid && passwordValid && (mode === 'signin' || password === confirmPassword)
+                  ? 'bg-white text-black hover:bg-gray-200 hover:scale-105'
+                  : 'bg-gray-600 text-gray-300 cursor-not-allowed'
+              }`}
               style={{ minHeight: '48px' }}
             >
               {loading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                  {mode === 'signin' ? 'Signing in...' : 'Creating account...'}
+                <div className="flex items-center justify-center gap-3">
+                  <InlineLoader size="sm" className="border-black border-t-transparent" />
+                  <span>{mode === 'signin' ? 'Signing in...' : 'Creating account...'}</span>
                 </div>
               ) : (
                 mode === 'signin' ? 'Sign In' : 'Create Account'

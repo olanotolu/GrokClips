@@ -1,6 +1,7 @@
 import { Share2, Heart } from 'lucide-react';
-import { useState } from 'react';
+import { useState, memo, useCallback, useMemo } from 'react';
 import { useLikedArticles } from '../contexts/LikedArticlesContext';
+import { InlineLoader } from './SkeletonCard';
 
 export interface GrokArticle {
     title: string;
@@ -19,30 +20,51 @@ interface GrokCardProps {
     article: GrokArticle;
 }
 
-export function GrokCard({ article }: GrokCardProps) {
+export const GrokCard = memo(function GrokCard({ article }: GrokCardProps) {
     const [imageLoaded, setImageLoaded] = useState(false);
+    const [imageError, setImageError] = useState(false);
+    const [isSharing, setIsSharing] = useState(false);
+    const [isLiking, setIsLiking] = useState(false);
     const { toggleLike, isLiked } = useLikedArticles();
 
-    const handleShare = async () => {
-        if (navigator.share) {
-            try {
+    const handleShare = useCallback(async () => {
+        setIsSharing(true);
+        try {
+            if (navigator.share) {
                 await navigator.share({
                     title: article.displaytitle,
                     text: article.extract || '',
                     url: article.url
                 });
-            } catch (error) {
-                console.error('Error sharing:', error);
+            } else {
                 // Fallback: Copy to clipboard
                 await navigator.clipboard.writeText(article.url);
-                // You could add a toast notification here instead of alert
             }
-        } else {
-            // Fallback: Copy to clipboard
-            await navigator.clipboard.writeText(article.url);
-            // You could add a toast notification here instead of alert
+        } catch (error) {
+            console.error('Error sharing:', error);
+            // Fallback: Copy to clipboard if share failed
+            try {
+                await navigator.clipboard.writeText(article.url);
+            } catch (clipboardError) {
+                console.error('Error copying to clipboard:', clipboardError);
+            }
+        } finally {
+            setTimeout(() => setIsSharing(false), 500); // Brief feedback
         }
-    };
+    }, [article.displaytitle, article.extract, article.url]);
+
+    const handleLike = useCallback(async () => {
+        setIsLiking(true);
+        try {
+            await toggleLike(article);
+        } finally {
+            setTimeout(() => setIsLiking(false), 300);
+        }
+    }, [article, toggleLike]);
+
+    // Memoize computed values
+    const isLikedStatus = useMemo(() => isLiked(article.pageid), [isLiked, article.pageid]);
+    const imageSrc = useMemo(() => article.thumbnail?.source, [article.thumbnail?.source]);
 
     return (
         <div
@@ -51,28 +73,49 @@ export function GrokCard({ article }: GrokCardProps) {
             data-article-id={article.pageid}
         >
             <div className="h-full w-full relative overflow-hidden">
-                {/* Background Image with Simple Effects */}
-                {article.thumbnail ? (
+                {/* Background Image with Enhanced Loading Effects */}
+                {article.thumbnail && !imageError && imageSrc ? (
                     <div className="absolute inset-0">
                         <img
                             loading="lazy"
-                            src={article.thumbnail.source}
+                            src={imageSrc}
                             alt={article.displaytitle}
-                            className={`w-full h-full object-cover transition-all duration-700 ${
+                            className={`w-full h-full object-cover transition-all duration-500 will-change-transform ${
                                 imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
                             } group-hover:scale-105`}
-                            onLoad={() => setImageLoaded(true)}
-                            onError={() => setImageLoaded(true)}
+                            onLoad={() => {
+                                setImageLoaded(true);
+                                setImageError(false);
+                            }}
+                            onError={() => {
+                                setImageLoaded(true);
+                                setImageError(true);
+                            }}
                         />
+
+                        {/* Loading shimmer effect */}
                         {!imageLoaded && (
-                            <div className="absolute inset-0 bg-gray-900 animate-pulse" />
+                            <div className="absolute inset-0">
+                                <div className="w-full h-full bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 animate-pulse" />
+                                <div
+                                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                                    style={{
+                                      animation: 'shimmer 1.5s infinite linear'
+                                    }}
+                                />
+                            </div>
                         )}
 
                         {/* Simple Gradient Overlay */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                     </div>
                 ) : (
-                    <div className="absolute inset-0 bg-gray-900" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900">
+                        {/* Placeholder for articles without images */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="text-gray-500 text-6xl opacity-20">📚</div>
+                        </div>
+                    </div>
                 )}
 
                 {/* Content Container with Simple Glassmorphism */}
@@ -93,10 +136,11 @@ export function GrokCard({ article }: GrokCardProps) {
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        toggleLike(article);
+                                        handleLike();
                                     }}
-                                    className={`p-3 rounded-full backdrop-blur-sm border transition-all duration-300 transform hover:scale-110 active:scale-95 touch-manipulation ${
-                                        isLiked(article.pageid)
+                                    disabled={isLiking}
+                                    className={`p-3 rounded-full backdrop-blur-sm border transition-all duration-300 transform hover:scale-110 active:scale-95 touch-manipulation disabled:opacity-70 disabled:cursor-not-allowed ${
+                                        isLikedStatus
                                             ? 'bg-red-500/90 border-red-400/50 text-white'
                                             : 'bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/30'
                                     }`}
@@ -106,25 +150,34 @@ export function GrokCard({ article }: GrokCardProps) {
                                     }}
                                     aria-label="Like article"
                                 >
-                                    <Heart
-                                        className={`w-5 h-5 transition-all duration-300 ${
-                                            isLiked(article.pageid) ? 'fill-white scale-110' : ''
-                                        }`}
-                                    />
+                                    {isLiking ? (
+                                        <InlineLoader size="sm" className="text-white" />
+                                    ) : (
+                                        <Heart
+                                            className={`w-5 h-5 transition-all duration-300 ${
+                                                isLikedStatus ? 'fill-white scale-110' : ''
+                                            }`}
+                                        />
+                                    )}
                                 </button>
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         handleShare();
                                     }}
-                                    className="p-3 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20 hover:border-white/30 transition-all duration-300 transform hover:scale-110 active:scale-95 touch-manipulation"
+                                    disabled={isSharing}
+                                    className="p-3 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20 hover:border-white/30 transition-all duration-300 transform hover:scale-110 active:scale-95 touch-manipulation disabled:opacity-70 disabled:cursor-not-allowed"
                                     style={{
                                         minHeight: '44px',
                                         minWidth: '44px',
                                     }}
                                     aria-label="Share article"
                                 >
-                                    <Share2 className="w-5 h-5" />
+                                    {isSharing ? (
+                                        <InlineLoader size="sm" className="text-white" />
+                                    ) : (
+                                        <Share2 className="w-5 h-5" />
+                                    )}
                                 </button>
                             </div>
                         </div>
@@ -162,4 +215,6 @@ export function GrokCard({ article }: GrokCardProps) {
             </div>
         </div>
     );
-}
+});
+
+GrokCard.displayName = 'GrokCard';

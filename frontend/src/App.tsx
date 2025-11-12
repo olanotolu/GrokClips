@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { GrokCard } from "./components/GrokCard";
 import { Loader2, Search, X, Download, Heart, Sun, Moon, Monitor, User, LogOut } from "lucide-react";
 import { Analytics } from "@vercel/analytics/react";
@@ -27,13 +27,59 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const lastScrollY = useRef(0);
 
-  // Virtual scrolling setup
+  // Memoized filtered articles for better performance
+  const globalFilteredArticles = useMemo(() => {
+    if (!globalSearchQuery.trim()) {
+      return articles;
+    }
+
+    const query = globalSearchQuery.toLowerCase();
+    return articles.filter((article) => {
+      const title = article.title?.toLowerCase() || '';
+      const extract = article.extract?.toLowerCase() || '';
+      return title.includes(query) || extract.includes(query);
+    });
+  }, [articles, globalSearchQuery]);
+
+  // Optimized virtual scrolling setup
   const rowVirtualizer = useVirtualizer({
     count: articles.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => window.innerHeight, // Each article takes full screen height
-    overscan: 2, // Render 2 extra items outside visible area
+    estimateSize: useCallback(() => window.innerHeight, []), // Memoized for performance
+    overscan: 1, // Reduced to 1 for better performance, still smooth
+    measureElement: useCallback(
+      (element: HTMLElement) => element.getBoundingClientRect().height,
+      []
+    ), // More accurate sizing
   });
+
+  // Image preloading for better performance
+  useEffect(() => {
+    const preloadImages = () => {
+      // Get visible items plus next few for preloading
+      const virtualItems = rowVirtualizer.getVirtualItems();
+      if (virtualItems.length === 0) return;
+
+      const startIndex = virtualItems[0].index;
+      const visibleCount = virtualItems.length;
+      const endIndex = Math.min(
+        startIndex + visibleCount + 5, // Preload next 5
+        articles.length
+      );
+
+      for (let i = startIndex; i < endIndex; i++) {
+        const article = articles[i];
+        if (article?.thumbnail?.source) {
+          const img = new Image();
+          img.src = article.thumbnail.source;
+        }
+      }
+    };
+
+    // Debounce preloading
+    const timeoutId = setTimeout(preloadImages, 100);
+    return () => clearTimeout(timeoutId);
+  }, [articles, rowVirtualizer]);
 
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
@@ -64,33 +110,44 @@ function App() {
     return () => observer.disconnect();
   }, [handleObserver]);
 
-  // Track scroll speed for dynamic batch sizing
+  // Optimized scroll tracking with better performance
   useEffect(() => {
-    const handleScroll = () => {
-      if (parentRef.current) {
-        const currentScrollY = parentRef.current.scrollTop;
-        const scrollDelta = currentScrollY - lastScrollY.current;
-        updateScrollSpeed(scrollDelta);
-        lastScrollY.current = currentScrollY;
-      }
-    };
+    let scrollTimeout: NodeJS.Timeout;
+    let lastScrollTime = Date.now();
 
-    // Throttle scroll events for performance
-    let ticking = false;
-    const throttledScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          handleScroll();
-          ticking = false;
-        });
-        ticking = true;
+    const handleScroll = () => {
+      if (!parentRef.current) return;
+
+      const now = Date.now();
+      const currentScrollY = parentRef.current.scrollTop;
+      const scrollDelta = currentScrollY - lastScrollY.current;
+      const timeDelta = now - lastScrollTime;
+
+      // Only update scroll speed if enough time has passed (throttle)
+      if (timeDelta > 16) { // ~60fps
+        updateScrollSpeed(scrollDelta);
+        lastScrollTime = now;
       }
+
+      lastScrollY.current = currentScrollY;
+
+      // Debounce scroll end detection
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        // Scroll has ended, can trigger any post-scroll actions here
+      }, 150);
     };
 
     const scrollElement = parentRef.current;
     if (scrollElement) {
-      scrollElement.addEventListener('scroll', throttledScroll, { passive: true });
-      return () => scrollElement.removeEventListener('scroll', throttledScroll);
+      scrollElement.addEventListener('scroll', handleScroll, {
+        passive: true,
+        capture: false
+      });
+      return () => {
+        scrollElement.removeEventListener('scroll', handleScroll);
+        clearTimeout(scrollTimeout);
+      };
     }
   }, [updateScrollSpeed]);
 
@@ -691,10 +748,7 @@ function App() {
                   </h2>
                   <p className="text-gray-400 text-sm mt-1">
                     {globalSearchQuery
-                      ? `${articles.filter((article) =>
-                          article.title.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
-                          article.extract.toLowerCase().includes(globalSearchQuery.toLowerCase())
-                        ).length} results found`
+                      ? `${globalFilteredArticles.length} results found`
                       : "Find articles by title or content"
                     }
                   </p>
@@ -769,10 +823,7 @@ function App() {
                           </div>
                         </div>
                       ))}
-                    {articles.filter((article) =>
-                      article.title.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
-                      article.extract.toLowerCase().includes(globalSearchQuery.toLowerCase())
-                    ).length === 0 && (
+                    {globalFilteredArticles.length === 0 && (
                       <div className="text-center py-12">
                         <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
                           <Search className="w-8 h-8 text-gray-500" />
@@ -809,11 +860,15 @@ function App() {
         </div>
       )}
 
-      {/* Virtual Scrolling Container */}
+      {/* Ultra-Optimized Virtual Scrolling Container */}
       <div
         ref={parentRef}
-        className="h-screen w-full overflow-auto snap-y snap-mandatory hide-scroll mobile-scroll"
-        style={{ contain: 'strict' }}
+        className="h-screen w-full overflow-auto snap-y snap-mandatory hide-scroll mobile-scroll gpu-accelerated contain-layout"
+        style={{
+          contain: 'strict',
+          willChange: 'scroll-position',
+          overscrollBehavior: 'contain'
+        }}
       >
         {articles.length === 0 ? (
           // Show skeleton loader when no articles at all
